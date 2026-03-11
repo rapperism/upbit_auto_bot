@@ -85,5 +85,5 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
 
 if __name__ == "__main__":
     # 실제 실행 시에는 API Key가 설정되어 있어야 합니다.
-    # run_trading_bot("KRW-BTC")
-    pass
+    run_trading_bot("KRW-BTC")
+    # pass
