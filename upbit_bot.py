@@ -1,89 +1,152 @@
 import os
 import time
-import pyupbit
-import pandas as pd
 from datetime import datetime
+
+import pandas as pd
+import pyupbit
 from dotenv import load_dotenv
 
-# .env 파일에서 API Key 로드
+# Load API keys from .env
 load_dotenv()
 access_key = os.getenv("UPBIT_ACCESS_KEY")
 secret_key = os.getenv("UPBIT_SECRET_KEY")
 
-# 업비트 객체 생성
+# Create Upbit client
 upbit = pyupbit.Upbit(access_key, secret_key)
 
+
+def get_ohlcv_or_none(ticker, interval="day", count=1):
+    """Return OHLCV dataframe or None when the API returns no usable data."""
+    df = pyupbit.get_ohlcv(ticker, interval=interval, count=count)
+    if df is None or df.empty:
+        return None
+    return df
+
+
 def get_target_price(ticker, k):
-    """변동성 돌파 전략으로 매수 목표가 조회"""
-    df = pyupbit.get_ohlcv(ticker, interval="day", count=2)
-    target_price = df.iloc[0]['close'] + (df.iloc[0]['high'] - df.iloc[0]['low']) * k
-    return target_price
+    """Get volatility breakout target price."""
+    df = get_ohlcv_or_none(ticker, interval="day", count=2)
+    if df is None or len(df) < 1:
+        return None
+
+    candle = df.iloc[0]
+    return candle["close"] + (candle["high"] - candle["low"]) * k
+
 
 def get_start_time(ticker):
-    """시작 시간 조회"""
-    df = pyupbit.get_ohlcv(ticker, interval="day", count=1)
-    start_time = df.index[0]
-    return start_time
+    """Get market start time."""
+    df = get_ohlcv_or_none(ticker, interval="day", count=1)
+    if df is None or len(df.index) < 1:
+        return None
+    return df.index[0]
+
 
 def get_ma5(ticker):
-    """5일 이동 평균선 조회"""
-    df = pyupbit.get_ohlcv(ticker, interval="day", count=5)
-    ma5 = df['close'].rolling(window=5).mean().iloc[-1]
+    """Get 5-day moving average."""
+    df = get_ohlcv_or_none(ticker, interval="day", count=5)
+    if df is None or "close" not in df or len(df) < 5:
+        return None
+
+    ma5 = df["close"].rolling(window=5).mean().iloc[-1]
+    if pd.isna(ma5):
+        return None
     return ma5
 
+
 def get_balance(ticker):
-    """잔고 조회"""
+    """Get balance for the given currency."""
     balances = upbit.get_balances()
-    for b in balances:
-        if b['currency'] == ticker:
-            if b['balance'] is not None:
-                return float(b['balance'])
-            else:
+    if not balances:
+        return 0
+
+    for item in balances:
+        currency = item.get("currency")
+        balance = item.get("balance")
+
+        if currency == ticker:
+            if balance is None:
                 return 0
+            return float(balance)
+
     return 0
 
+
 def get_current_price(ticker):
-    """현재가 조회"""
-    return pyupbit.get_orderbook(ticker=ticker)["orderbook_units"][0]["ask_price"]
+    """Get current ask price."""
+    orderbook = pyupbit.get_orderbook(ticker=ticker)
+    if not orderbook:
+        return None
+
+    if isinstance(orderbook, list):
+        orderbook = orderbook[0] if orderbook else None
+
+    if not orderbook:
+        return None
+
+    orderbook_units = orderbook.get("orderbook_units")
+    if not orderbook_units:
+        return None
+
+    first_unit = orderbook_units[0]
+    if not first_unit:
+        return None
+
+    return first_unit.get("ask_price")
+
 
 print("Upbit Bot Initialized.")
 
+
 def run_trading_bot(ticker="KRW-BTC", k=0.5):
-    """자동매매 실행 루프"""
+    """Main trading loop."""
     print(f"Trading bot started for {ticker} with k={k}")
-    
+
     while True:
         try:
             now = datetime.now()
             start_time = get_start_time(ticker)
+            if start_time is None:
+                print(f"Warning: failed to get start time for {ticker}")
+                time.sleep(1)
+                continue
+
             end_time = start_time + pd.Timedelta(days=1)
 
-            # 09:00:00 ~ 다음날 08:59:50 (장 운영 시간)
+            # Trading window: 09:00:00 to the next day 08:59:50
             if start_time < now < end_time - pd.Timedelta(seconds=10):
                 target_price = get_target_price(ticker, k)
                 ma5 = get_ma5(ticker)
                 current_price = get_current_price(ticker)
-                
-                # 매수 조건: 현재가 > 목표가 AND 현재가 > 5일 이동평균선
+
+                if target_price is None or ma5 is None or current_price is None:
+                    print(f"Warning: market data unavailable for {ticker}")
+                    time.sleep(1)
+                    continue
+
                 if target_price < current_price and ma5 < current_price:
                     krw = get_balance("KRW")
-                    if krw > 5000: # 최소 주문 금액 5,000원
+                    if krw > 5000:
                         print(f"Buying {ticker} at {current_price}")
-                        upbit.buy_market_order(ticker, krw * 0.9995) # 수수료 고려
-            
+                        upbit.buy_market_order(ticker, krw * 0.9995)
+
             else:
-                # 장 마감 시 전량 매도
-                coin_balance = get_balance(ticker.split("-")[1])
-                if coin_balance > 0.00008: # 최소 매도 수량 (BTC 기준 예시)
-                    print(f"Selling {ticker} at {get_current_price(ticker)}")
+                base_currency = ticker.split("-")[1]
+                coin_balance = get_balance(base_currency)
+                if coin_balance > 0.00008:
+                    current_price = get_current_price(ticker)
+                    if current_price is None:
+                        print(f"Warning: failed to get current price for {ticker}")
+                        time.sleep(1)
+                        continue
+
+                    print(f"Selling {ticker} at {current_price}")
                     upbit.sell_market_order(ticker, coin_balance)
-            
+
             time.sleep(1)
         except Exception as e:
             print(f"Error: {e}")
             time.sleep(1)
 
+
 if __name__ == "__main__":
-    # 실제 실행 시에는 API Key가 설정되어 있어야 합니다.
     run_trading_bot("KRW-BTC")
-    # pass
