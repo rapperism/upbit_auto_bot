@@ -121,12 +121,18 @@ def get_current_price(ticker):
     return first_unit.get("ask_price")
 
 
-print("Upbit Bot Initialized.")
+def log(msg):
+    """Print message with current time prefix."""
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{ts}] {msg}")
+
+
+log("Upbit Bot Initialized.")
 
 
 def run_trading_bot(ticker="KRW-BTC", k=0.5):
     """Main trading loop."""
-    print(f"Trading bot started for {ticker} with k={k}")
+    log(f"Trading bot started for {ticker} with k={k}")
     last_buy_log_time = None
     BUY_LOG_INTERVAL_SEC = 60  # 매수 조건 로그는 60초마다 한 번만
 
@@ -135,7 +141,7 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
             now = datetime.now()
             start_time = get_start_time(ticker)
             if start_time is None:
-                print(f"Warning: failed to get start time for {ticker}")
+                log(f"Warning: failed to get start time for {ticker}")
                 time.sleep(1)
                 continue
 
@@ -148,7 +154,7 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
                 current_price = get_current_price(ticker)
 
                 if target_price is None or ma5 is None or current_price is None:
-                    print(f"Warning: market data unavailable for {ticker}")
+                    log(f"Warning: market data unavailable for {ticker}")
                     time.sleep(1)
                     continue
 
@@ -157,11 +163,11 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
                 if should_buy:
                     krw = get_balance("KRW")
                     if krw > 5000:
-                        print(f"Buying {ticker} at {current_price}")
+                        log(f"Buying {ticker} at {current_price}")
                         upbit.buy_market_order(ticker, krw * 0.9995)
                     else:
                         if last_buy_log_time is None or (now - last_buy_log_time).total_seconds() >= BUY_LOG_INTERVAL_SEC:
-                            print(f"[Buy condition OK but no KRW] target={target_price:.0f} ma5={ma5:.0f} current={current_price:.0f} krw={krw:.0f}")
+                            log(f"[Buy condition OK but no KRW] target={target_price:.0f} ma5={ma5:.0f} current={current_price:.0f} krw={krw:.0f}")
                             last_buy_log_time = now
                 else:
                     # 왜 매수 안 하는지 주기적으로 로그 (매초 말고 60초마다)
@@ -171,7 +177,7 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
                             reason.append(f"current({current_price:.0f}) <= target({target_price:.0f})")
                         if current_price <= ma5:
                             reason.append(f"current({current_price:.0f}) <= ma5({ma5:.0f})")
-                        print(f"[No buy] {ticker} — {'; '.join(reason)}")
+                        log(f"[No buy] {ticker} — {'; '.join(reason)}")
                         last_buy_log_time = now
 
             else:
@@ -182,7 +188,7 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
                 if coin_balance > 0.00008:
                     current_price = get_current_price(ticker)
                     if current_price is None:
-                        print(f"Warning: failed to get current price for {ticker}")
+                        log(f"Warning: failed to get current price for {ticker}")
                         time.sleep(1)
                         continue
 
@@ -190,19 +196,19 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
                     if avg_buy is not None and avg_buy > 0:
                         min_sell_price = avg_buy * (1 + MIN_RETURN_TO_SELL)
                         if current_price < min_sell_price:
-                            print(
+                            log(
                                 f"Skipping sell {ticker}: {current_price:.0f} < min {min_sell_price:.0f} "
                                 f"(avg_buy={avg_buy:.0f}, need +{MIN_RETURN_TO_SELL*100:.2f}%)"
                             )
                             time.sleep(1)
                             continue
 
-                    print(f"Selling {ticker} at {current_price}")
+                    log(f"Selling {ticker} at {current_price}")
                     upbit.sell_market_order(ticker, coin_balance)
 
             time.sleep(1)
         except Exception as e:
-            print(f"Error: {e}")
+            log(f"Error: {e}")
             time.sleep(1)
 
 
