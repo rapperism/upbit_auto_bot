@@ -163,20 +163,20 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
                 if should_buy:
                     krw = get_balance("KRW")
                     if krw > 5000:
-                        log(f"Buying {ticker} at {current_price}")
+                        log(f"Buying {ticker} at {current_price:,.0f}")
                         upbit.buy_market_order(ticker, krw * 0.9995)
                     else:
                         if last_buy_log_time is None or (now - last_buy_log_time).total_seconds() >= BUY_LOG_INTERVAL_SEC:
-                            log(f"[Buy condition OK but no KRW] target={target_price:.0f} ma5={ma5:.0f} current={current_price:.0f} krw={krw:.0f}")
+                            log(f"[Buy condition OK but no KRW] target={target_price:,.0f} ma5={ma5:,.0f} current={current_price:,.0f} krw={krw:,.0f}")
                             last_buy_log_time = now
                 else:
                     # 왜 매수 안 하는지 주기적으로 로그 (매초 말고 60초마다)
                     if last_buy_log_time is None or (now - last_buy_log_time).total_seconds() >= BUY_LOG_INTERVAL_SEC:
                         reason = []
                         if current_price <= target_price:
-                            reason.append(f"current({current_price:.0f}) <= target({target_price:.0f})")
+                            reason.append(f"current({current_price:,.0f}) <= target({target_price:,.0f})")
                         if current_price <= ma5:
-                            reason.append(f"current({current_price:.0f}) <= ma5({ma5:.0f})")
+                            reason.append(f"current({current_price:,.0f}) <= ma5({ma5:,.0f})")
                         log(f"[No buy] {ticker} — {'; '.join(reason)}")
                         last_buy_log_time = now
 
@@ -197,13 +197,13 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
                         min_sell_price = avg_buy * (1 + MIN_RETURN_TO_SELL)
                         if current_price < min_sell_price:
                             log(
-                                f"Skipping sell {ticker}: {current_price:.0f} < min {min_sell_price:.0f} "
-                                f"(avg_buy={avg_buy:.0f}, need +{MIN_RETURN_TO_SELL*100:.2f}%)"
+                                f"Skipping sell {ticker}: {current_price:,.0f} < min {min_sell_price:,.0f} "
+                                f"(avg_buy={avg_buy:,.0f}, need +{MIN_RETURN_TO_SELL*100:.2f}%)"
                             )
                             time.sleep(1)
                             continue
 
-                    log(f"Selling {ticker} at {current_price}")
+                    log(f"Selling {ticker} at {current_price:,.0f}")
                     upbit.sell_market_order(ticker, coin_balance)
 
             time.sleep(1)
