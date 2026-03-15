@@ -1,6 +1,8 @@
+import logging
 import os
 import time
 from datetime import datetime
+from logging.handlers import TimedRotatingFileHandler
 
 import pandas as pd
 import pyupbit
@@ -121,12 +123,46 @@ def get_current_price(ticker):
     return first_unit.get("ask_price")
 
 
+# 로그: 파일(일 단위 로테이션, 30일 보관) + 콘솔
+LOG_DIR = "logs"
+LOG_FILE = os.path.join(LOG_DIR, "upbit_bot.log")
+LOG_BACKUP_DAYS = 30
+_logger = None
+
+
+def setup_logging():
+    """파일(일 단위 로테이션, 30일 초과 분 삭제) + 콘솔 출력 설정."""
+    global _logger
+    if _logger is not None:
+        return
+    os.makedirs(LOG_DIR, exist_ok=True)
+    _logger = logging.getLogger("upbit_bot")
+    _logger.setLevel(logging.INFO)
+    _logger.handlers.clear()
+    fmt = logging.Formatter("[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    fh = TimedRotatingFileHandler(
+        LOG_FILE,
+        when="midnight",
+        interval=1,
+        backupCount=LOG_BACKUP_DAYS,
+        encoding="utf-8",
+    )
+    fh.suffix = "%Y-%m-%d"
+    fh.setFormatter(fmt)
+    _logger.addHandler(fh)
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    _logger.addHandler(sh)
+
+
 def log(msg):
-    """Print message with current time prefix."""
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{ts}] {msg}")
+    """콘솔 + 로그 파일에 시간 접두어와 함께 출력."""
+    if _logger is None:
+        setup_logging()
+    _logger.info(msg)
 
 
+setup_logging()
 log("Upbit Bot Initialized.")
 
 
