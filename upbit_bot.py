@@ -63,6 +63,9 @@ def get_ma5(ticker):
 # Minimum return to sell after fees (0.05% buy + 0.05% sell ≈ 0.1%)
 MIN_RETURN_TO_SELL = 0.001
 
+# Stop-loss: 평균 매수가 대비 이 비율만큼 하락 시 즉시 매도 (수수료 최소 수익 조건보다 우선)
+STOP_LOSS_PCT = 0.03
+
 
 def get_balance(ticker):
     """Get balance for the given currency."""
@@ -181,6 +184,26 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
                 time.sleep(1)
                 continue
 
+            # 손절: 보유 중이고 평단이 있으면, 매도 구간과 무관하게 임계 하락 시 즉시 매도
+            base_currency = ticker.split("-")[1]
+            coin_balance = get_balance(base_currency)
+            if coin_balance > 0.00008:
+                sl_price = get_current_price(ticker)
+                avg_buy_sl = get_avg_buy_price(base_currency)
+                if (
+                    avg_buy_sl is not None
+                    and avg_buy_sl > 0
+                    and sl_price is not None
+                    and sl_price <= avg_buy_sl * (1 - STOP_LOSS_PCT)
+                ):
+                    log(
+                        f"Stop-loss sell {ticker} at {sl_price:,.0f} "
+                        f"(avg_buy={avg_buy_sl:,.0f}, threshold -{STOP_LOSS_PCT*100:.0f}%)"
+                    )
+                    upbit.sell_market_order(ticker, coin_balance)
+                    time.sleep(1)
+                    continue
+
             end_time = start_time + pd.Timedelta(days=1)
 
             # Trading window: 09:00:00 to the next day 08:59:50
@@ -219,7 +242,6 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
             else:
                 # 매도 구간(09:00 전 등): 다음 날 매수 로그를 위해 초기화
                 last_buy_log_time = None
-                base_currency = ticker.split("-")[1]
                 coin_balance = get_balance(base_currency)
                 if coin_balance > 0.00008:
                     current_price = get_current_price(ticker)

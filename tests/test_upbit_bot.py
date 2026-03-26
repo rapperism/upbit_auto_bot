@@ -53,6 +53,12 @@ def test_min_return_to_sell_constant():
     assert bot.MIN_RETURN_TO_SELL >= 0.001
 
 
+def test_stop_loss_constant():
+    """손절 비율 상수 존재 (기본 -3%)."""
+    assert hasattr(bot, "STOP_LOSS_PCT")
+    assert bot.STOP_LOSS_PCT == 0.03
+
+
 def test_get_avg_buy_price_returns_float_or_none():
     """get_avg_buy_price는 float 또는 None 반환."""
     with patch.object(bot.upbit, "get_balances", return_value=[]):
