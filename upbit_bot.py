@@ -233,10 +233,15 @@ def run_trading_bot(ticker="KRW-BTC", k=0.5):
                     if last_buy_log_time is None or (now - last_buy_log_time).total_seconds() >= BUY_LOG_INTERVAL_SEC:
                         reason = []
                         if current_price <= target_price:
-                            reason.append(f"current({current_price:,.0f}) <= target({target_price:,.0f})")
+                            reason.append(
+                                f"돌파 미충족: 현재({current_price:,.0f}) ≤ 목표({target_price:,.0f}) "
+                                f"(변동성 돌파는 목표가 위로 올라갈 때만 매수)"
+                            )
                         if current_price <= ma5:
-                            reason.append(f"current({current_price:,.0f}) <= ma5({ma5:,.0f})")
-                        log(f"[No buy] {ticker} — {'; '.join(reason)}")
+                            reason.append(
+                                f"5일선 미충족: 현재({current_price:,.0f}) ≤ ma5({ma5:,.0f})"
+                            )
+                        log(f"[No buy] {ticker} — {' | '.join(reason)}")
                         last_buy_log_time = now
 
             else:
