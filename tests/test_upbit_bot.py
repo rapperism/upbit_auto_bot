@@ -77,3 +77,19 @@ def test_get_avg_buy_price_returns_float_or_none():
         return_value=[{"currency": "BTC", "balance": "0", "avg_buy_price": ""}],
     ):
         assert bot.get_avg_buy_price("BTC") is None
+
+
+def test_get_balance_api_error_dict_returns_zero():
+    """Upbit 오류 응답(dict, error 키) 시 str 순회로 인한 AttributeError 없이 0 반환."""
+    bot._balances_api_error_logged = False
+    err = {"error": {"name": "test_error", "message": "bad request"}}
+    with patch.object(bot.upbit, "get_balances", return_value=err):
+        assert bot.get_balance("BTC") == 0
+
+
+def test_get_avg_buy_price_api_error_dict_returns_none():
+    """오류 dict 응답 시 None (예외 없음)."""
+    bot._balances_api_error_logged = False
+    err = {"error": {"name": "test_error", "message": "bad request"}}
+    with patch.object(bot.upbit, "get_balances", return_value=err):
+        assert bot.get_avg_buy_price("BTC") is None

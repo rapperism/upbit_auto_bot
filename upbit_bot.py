@@ -66,14 +66,40 @@ MIN_RETURN_TO_SELL = 0.001
 # Stop-loss: 평균 매수가 대비 이 비율만큼 하락 시 즉시 매도 (수수료 최소 수익 조건보다 우선)
 STOP_LOSS_PCT = 0.03
 
+# pyupbit: 성공 시 list[dict], 오류 시 {"error": {...}} dict — dict를 순회하면 키(str)만 나와 .get() 예외 발생
+_balances_api_error_logged = False
+
+
+def _normalize_balances(balances):
+    """성공 시 계좌 dict 리스트, 오류 응답이면 None, 그 외 빈 리스트."""
+    global _balances_api_error_logged
+    if balances is None:
+        return []
+    if isinstance(balances, dict):
+        if "error" in balances:
+            if not _balances_api_error_logged:
+                log(f"Upbit balances API error: {balances.get('error')}")
+                _balances_api_error_logged = True
+            return None
+        return []
+    if isinstance(balances, list):
+        _balances_api_error_logged = False
+        return balances
+    return []
+
 
 def get_balance(ticker):
     """Get balance for the given currency."""
     balances = upbit.get_balances()
-    if not balances:
+    rows = _normalize_balances(balances)
+    if rows is None:
+        return 0
+    if not rows:
         return 0
 
-    for item in balances:
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
         currency = item.get("currency")
         balance = item.get("balance")
 
@@ -88,10 +114,15 @@ def get_balance(ticker):
 def get_avg_buy_price(currency):
     """Get average buy price for the given currency (from Upbit balance). Returns None if not available."""
     balances = upbit.get_balances()
-    if not balances:
+    rows = _normalize_balances(balances)
+    if rows is None:
+        return None
+    if not rows:
         return None
 
-    for item in balances:
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
         if item.get("currency") == currency:
             price = item.get("avg_buy_price")
             if price is None or price == "":
