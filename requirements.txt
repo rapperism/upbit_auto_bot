@@ -1,0 +1,4 @@
+# 봇 실행에 필요한 직접 의존성 (pip이 나머지는 자동 설치)
+pandas>=2.2,<4
+pyupbit>=0.2.34
+python-dotenv>=1.0
